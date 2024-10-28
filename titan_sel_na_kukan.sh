@@ -71,8 +71,7 @@ set -e
 
 # Установка необходимых пакетов
 echo "Установка необходимых пакетов..."
-apt-get update
-apt-get install -y apt-transport-https ca-certificates curl software-properties-common uuid-runtime
+sudo apt-get update && sudo apt-get upgrade -y
 
 # Добавляем репозиторий Docker и устанавливаем Docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
