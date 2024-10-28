@@ -69,23 +69,6 @@ show_header
 # Прекращаем выполнение при ошибках
 set -e
 
-# Установка необходимых пакетов
-echo "Установка необходимых пакетов..."
-sudo apt-get update && sudo apt-get upgrade -y
-
-# Добавляем репозиторий Docker и устанавливаем Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io
-
-# Установка Docker Compose
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-
-# Добавляем пользователя root в группу docker
-usermod -aG docker root
-
 # Имя Docker-образа
 IMAGE_NAME="titan_image"  # Новый образ, созданный на основе Ubuntu
 
