@@ -1,9 +1,5 @@
 #!/bin/bash
 
-
-
-
-
 show_header() {
     echo -e "\033[97m# =------------------------------------==============+===---------------------------------------------\033[0m"
     echo -e "\033[97m# -----------------------------------=====--------------====------------------------------------------\033[0m"
@@ -63,14 +59,8 @@ show_header() {
     echo -e "\033[97m# ===================================----------===--------==------------------------------------\033[0m"
 }
 
+# Вызываем функцию отображения заголовка
 show_header
-
-
-
-
-
-
-
 
 # Прекращаем выполнение при ошибках
 set -e
@@ -83,7 +73,7 @@ CONTAINER_PREFIX="titan"
 
 # Папка для хранения Machine ID
 MACHINE_ID_DIR="machine_ids"
-mkdir -p $MACHINE_ID_DIR
+mkdir -p "$MACHINE_ID_DIR"
 
 # Создаём Dockerfile
 echo "Создаём Dockerfile..."
@@ -115,7 +105,7 @@ echo "Dockerfile создан."
 
 # Сборка Docker-образа
 echo "Сборка Docker-образа $IMAGE_NAME..."
-docker build -t $IMAGE_NAME .
+docker build -t "$IMAGE_NAME" .
 
 # Запрос количества контейнеров
 read -p "Введите количество контейнеров для создания: " CONTAINER_COUNT
@@ -166,42 +156,42 @@ for container in $containers; do
 
     if [ -z "$is_running" ]; then
         echo "Контейнер $container не запущен. Запускаем..."
-        docker start $container
+        docker start "$container"
     else
         echo "Контейнер $container уже запущен."
     fi
 
     # Проверяем, есть ли запущенные Docker-контейнеры внутри контейнера titan*
-    running_containers=$(docker exec $container docker ps -q 2>/dev/null)
+    running_containers=$(docker exec "$container" docker ps -q 2>/dev/null)
 
     if [ -z "$running_containers" ]; then
         echo "Внутри контейнера $container нет запущенных Docker-контейнеров. Выполняем настройки..."
 
         # Выполняем команды внутри контейнера titan*
         echo "Выполняем docker pull nezha123/titan-edge внутри $container"
-        docker exec $container docker pull nezha123/titan-edge
+        docker exec "$container" docker pull nezha123/titan-edge
 
         echo "Создаём директорию ~/.titanedge внутри $container"
-        docker exec $container mkdir -p /root/.titanedge
+        docker exec "$container" mkdir -p /root/.titanedge
 
         echo "Запускаем nezha123/titan-edge внутри $container"
-        docker exec $container docker run --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
+        docker exec "$container" docker run --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
 
         # Пауза 3 секунды для создания файла config.toml
         echo "Ожидание 3 секунд для создания config.toml"
         sleep 3
 
         # Извлекаем номер из имени контейнера
-        port_number=$(echo $container | grep -o '[0-9]\+')
+        port_number=$(echo "$container" | grep -o '[0-9]\+')
         port=$((1234 + port_number))
 
         # Заменяем порт в файле config.toml внутри контейнера
         echo "Изменяем порт на $port в файле config.toml внутри $container"
-        docker exec $container sed -i "s/#ListenAddress = \"0.0.0.0:1234\"/ListenAddress = \"0.0.0.0:$port\"/" /root/.titanedge/config.toml
+        docker exec "$container" sed -i "s/#ListenAddress = \"0.0.0.0:1234\"/ListenAddress = \"0.0.0.0:$port\"/" /root/.titanedge/config.toml
 
         # Запрашиваем Identity code у пользователя
         echo -n "Введите Identity code для контейнера $container: "
-        read IDENTITY_CODE
+        read -r IDENTITY_CODE
 
         # Проверяем, что пользователь ввёл код
         if [ -z "$IDENTITY_CODE" ]; then
@@ -211,7 +201,7 @@ for container in $containers; do
 
         # Выполняем команду bind внутри контейнера без опции -it
         echo "Выполняем команду bind внутри $container"
-        docker exec $container docker run --rm -v /root/.titanedge:/root/.titanedge nezha123/titan-edge bind --hash="$IDENTITY_CODE" https://api-test1.container1.titannet.io/api/v2/device/binding
+        docker exec "$container" docker run --rm -v /root/.titanedge:/root/.titanedge nezha123/titan-edge bind --hash="$IDENTITY_CODE" https://api-test1.container1.titannet.io/api/v2/device/binding
 
         echo "Настройка контейнера $container завершена."
     else
