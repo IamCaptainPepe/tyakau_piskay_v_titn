@@ -62,153 +62,268 @@ show_header() {
 # Вызываем функцию отображения заголовка
 show_header
 
+#!/bin/bash
+
 # Прекращаем выполнение при ошибках
 set -e
 
-# Имя Docker-образа
-IMAGE_NAME="titan_image"  # Новый образ, созданный на основе Ubuntu
-
-# Имя для контейнера
+# Префикс для контейнеров
 CONTAINER_PREFIX="titan"
 
-# Папка для хранения Machine ID
-MACHINE_ID_DIR="machine_ids"
-mkdir -p "$MACHINE_ID_DIR"
+# Функция установки
+installation_function() {
+    # Имя Docker-образа
+    IMAGE_NAME="titan_image"  # Новый образ, созданный на основе Ubuntu
 
-# Создаём Dockerfile
-echo "Создаём Dockerfile..."
+    # Папка для хранения Machine ID
+    MACHINE_ID_DIR="machine_ids"
+    mkdir -p "$MACHINE_ID_DIR"
 
-cat <<EOF > Dockerfile
-# Используем базовый образ Ubuntu
-FROM ubuntu:22.04
+    # Создаём Dockerfile
+    echo "Создаём Dockerfile..."
 
-# Установка необходимых пакетов
-RUN apt-get update && apt-get install -y \\
-    apt-transport-https \\
-    ca-certificates \\
-    curl \\
-    software-properties-common \\
-    uuid-runtime \\
-    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \\
-    && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" \\
-    && apt-get update \\
-    && apt-get install -y docker-ce docker-ce-cli containerd.io \\
-    && curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose \\
-    && chmod +x /usr/local/bin/docker-compose \\
-    && usermod -aG docker root
+    cat <<EOF > Dockerfile
+    # Используем базовый образ Ubuntu
+    FROM ubuntu:22.04
 
-# Запуск демона Docker
-CMD ["sh", "-c", "dockerd & tail -f /dev/null"]
-EOF
+    # Установка необходимых пакетов
+    RUN apt-get update && apt-get install -y \\
+        apt-transport-https \\
+        ca-certificates \\
+        curl \\
+        software-properties-common \\
+        uuid-runtime \\
+        && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \\
+        && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" \\
+        && apt-get update \\
+        && apt-get install -y docker-ce docker-ce-cli containerd.io \\
+        && curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose \\
+        && chmod +x /usr/local/bin/docker-compose \\
+        && usermod -aG docker root
 
-echo "Dockerfile создан."
+    # Запуск демона Docker
+    CMD ["sh", "-c", "dockerd & tail -f /dev/null"]
+    EOF
 
-# Сборка Docker-образа
-echo "Сборка Docker-образа $IMAGE_NAME..."
-docker build -t "$IMAGE_NAME" .
+    echo "Dockerfile создан."
 
-# Запрос количества контейнеров
-read -p "Введите количество контейнеров для создания: " CONTAINER_COUNT
+    # Сборка Docker-образа
+    echo "Сборка Docker-образа $IMAGE_NAME..."
+    docker build -t "$IMAGE_NAME" .
 
-# Проверка на корректность ввода
-if [[ ! "$CONTAINER_COUNT" =~ ^[0-9]+$ ]]; then
-    echo "Ошибка: введите число."
-    exit 1
-fi
+    # Запрос количества контейнеров
+    read -p "Введите количество контейнеров для создания: " CONTAINER_COUNT
 
-# Цикл для создания контейнеров
-for ((i=1; i<=CONTAINER_COUNT; i++)); do
-    # Генерация уникального Machine ID для контейнера
-    MACHINE_ID_FILE="$MACHINE_ID_DIR/machine_id_$i"
-    uuidgen > "$MACHINE_ID_FILE"
-    MACHINE_ID=$(cat "$MACHINE_ID_FILE")
+    # Проверка на корректность ввода
+    if [[ ! "$CONTAINER_COUNT" =~ ^[0-9]+$ ]]; then
+        echo "Ошибка: введите число."
+        return 1
+    fi
 
-    # Генерация уникального имени контейнера
-    container_name="${CONTAINER_PREFIX}${i}"
+    # Цикл для создания контейнеров
+    for ((i=1; i<=CONTAINER_COUNT; i++)); do
+        # Генерация уникального Machine ID для контейнера
+        MACHINE_ID_FILE="$MACHINE_ID_DIR/machine_id_$i"
+        uuidgen > "$MACHINE_ID_FILE"
+        MACHINE_ID=$(cat "$MACHINE_ID_FILE")
 
-    # Проверка на существование контейнера с таким именем
-    while docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; do
-        i=$((i + 1))  # Увеличиваем i для создания нового имени
-        container_name="${CONTAINER_PREFIX}${i}"  # Обновляем имя контейнера
+        # Генерация уникального имени контейнера
+        container_name="${CONTAINER_PREFIX}${i}"
+
+        # Проверка на существование контейнера с таким именем
+        while docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; do
+            i=$((i + 1))  # Увеличиваем i для создания нового имени
+            container_name="${CONTAINER_PREFIX}${i}"  # Обновляем имя контейнера
+        done
+
+        # Создание и запуск Docker-контейнеров с привилегиями
+        if docker run -d --privileged --name "$container_name" --env MACHINE_ID="$MACHINE_ID" "$IMAGE_NAME"; then
+            echo "Контейнер ${container_name} запущен с Machine ID $MACHINE_ID"
+        else
+            echo "Ошибка при запуске контейнера ${container_name}. Возможно, образ недоступен."
+        fi
     done
 
-    # Создание и запуск Docker-контейнеров с привилегиями
-    if docker run -d --privileged --name "$container_name" --env MACHINE_ID="$MACHINE_ID" "$IMAGE_NAME"; then
-        echo "Контейнер ${container_name} запущен с Machine ID $MACHINE_ID"
-    else
-        echo "Ошибка при запуске контейнера ${container_name}. Возможно, образ недоступен."
-    fi
-done
+    echo "Создано $CONTAINER_COUNT контейнеров."
 
-echo "Создано $CONTAINER_COUNT контейнеров."
+    # Начинаем настройку контейнеров
+    echo "Начинаем настройку контейнеров..."
 
-# Начинаем настройку контейнеров
-echo "Начинаем настройку контейнеров..."
+    # Получаем список контейнеров с именем titan*
+    containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
 
-# Получаем список контейнеров с именем titan*
-containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+    for container in $containers; do
+        echo "Обработка контейнера $container"
 
-for container in $containers; do
-    echo "Обработка контейнера $container"
+        # Проверяем, запущен ли контейнер
+        is_running=$(docker ps --format '{{.Names}}' | grep "^$container$")
 
-    # Проверяем, запущен ли контейнер
-    is_running=$(docker ps --format '{{.Names}}' | grep "^$container$")
+        if [ -z "$is_running" ]; then
+            echo "Контейнер $container не запущен. Запускаем..."
+            docker start "$container"
+        else
+            echo "Контейнер $container уже запущен."
+        fi
 
-    if [ -z "$is_running" ]; then
-        echo "Контейнер $container не запущен. Запускаем..."
-        docker start "$container"
-    else
-        echo "Контейнер $container уже запущен."
-    fi
+        # Проверяем, есть ли запущенные Docker-контейнеры внутри контейнера titan*
+        running_containers=$(docker exec "$container" docker ps -q 2>/dev/null)
 
-    # Проверяем, есть ли запущенные Docker-контейнеры внутри контейнера titan*
-    running_containers=$(docker exec "$container" docker ps -q 2>/dev/null)
+        if [ -z "$running_containers" ]; then
+            echo "Внутри контейнера $container нет запущенных Docker-контейнеров. Выполняем настройки..."
 
-    if [ -z "$running_containers" ]; then
-        echo "Внутри контейнера $container нет запущенных Docker-контейнеров. Выполняем настройки..."
+            # Выполняем команды внутри контейнера titan*
+            echo "Выполняем docker pull nezha123/titan-edge внутри $container"
+            docker exec "$container" docker pull nezha123/titan-edge
 
-        # Выполняем команды внутри контейнера titan*
-        echo "Выполняем docker pull nezha123/titan-edge внутри $container"
-        docker exec "$container" docker pull nezha123/titan-edge
+            echo "Создаём директорию ~/.titanedge внутри $container"
+            docker exec "$container" mkdir -p /root/.titanedge
 
-        echo "Создаём директорию ~/.titanedge внутри $container"
-        docker exec "$container" mkdir -p /root/.titanedge
+            echo "Запускаем nezha123/titan-edge внутри $container"
+            docker exec "$container" docker run --name titan-edge --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
 
-        echo "Запускаем nezha123/titan-edge внутри $container"
-        docker exec "$container" docker run --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
+            # Пауза 3 секунды для создания файла config.toml
+            echo "Ожидание 3 секунд для создания config.toml"
+            sleep 3
 
-        # Пауза 3 секунды для создания файла config.toml
-        echo "Ожидание 3 секунд для создания config.toml"
-        sleep 3
+            # Извлекаем номер из имени контейнера
+            port_number=$(echo "$container" | grep -o '[0-9]\+')
+            port=$((1234 + port_number))
 
-        # Извлекаем номер из имени контейнера
-        port_number=$(echo "$container" | grep -o '[0-9]\+')
-        port=$((1234 + port_number))
+            # Заменяем порт в файле config.toml внутри контейнера
+            echo "Изменяем порт на $port в файле config.toml внутри $container"
+            docker exec "$container" sed -i "s/#ListenAddress = \"0.0.0.0:1234\"/ListenAddress = \"0.0.0.0:$port\"/" /root/.titanedge/config.toml
 
-        # Заменяем порт в файле config.toml внутри контейнера
-        echo "Изменяем порт на $port в файле config.toml внутри $container"
-        docker exec "$container" sed -i "s/#ListenAddress = \"0.0.0.0:1234\"/ListenAddress = \"0.0.0.0:$port\"/" /root/.titanedge/config.toml
+            # Запрашиваем Identity code у пользователя
+            echo -n "Введите Identity code для контейнера $container: "
+            read -r IDENTITY_CODE
 
-        # Запрашиваем Identity code у пользователя
-        echo -n "Введите Identity code для контейнера $container: "
-        read -r IDENTITY_CODE
+            # Проверяем, что пользователь ввёл код
+            if [ -z "$IDENTITY_CODE" ]; then
+                echo "Ошибка: Identity code не может быть пустым. Пропускаем контейнер $container."
+                continue
+            fi
 
-        # Проверяем, что пользователь ввёл код
-        if [ -z "$IDENTITY_CODE" ]; then
-            echo "Ошибка: Identity code не может быть пустым. Пропускаем контейнер $container."
+            # Выполняем команду bind внутри контейнера без опции -it
+            echo "Выполняем команду bind внутри $container"
+            docker exec "$container" docker run --rm -v /root/.titanedge:/root/.titanedge nezha123/titan-edge bind --hash="$IDENTITY_CODE" https://api-test1.container1.titannet.io/api/v2/device/binding
+
+            echo "Настройка контейнера $container завершена."
+        else
+            echo "Внутри контейнера $container уже запущены Docker-контейнеры."
+        fi
+
+        echo "--------------------------------------------"
+    done
+
+    echo "Все контейнеры настроены."
+    read -p "Нажмите Enter, чтобы вернуться в меню..."
+}
+
+# Функция перезагрузки нод
+restart_nodes_function() {
+    echo "Перезагрузка нод..."
+
+    # Получаем список контейнеров с именем titan*
+    containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+
+    for container in $containers; do
+        echo "Обработка контейнера $container"
+
+        # Проверяем, запущен ли контейнер
+        is_running=$(docker ps --format '{{.Names}}' | grep "^$container$")
+
+        if [ -z "$is_running" ]; then
+            echo "Контейнер $container не запущен. Запускаем..."
+            docker start "$container"
+        else
+            echo "Контейнер $container уже запущен."
+        fi
+
+        # Проверяем, запущен ли контейнер titan-edge внутри контейнера
+        is_titan_edge_running=$(docker exec "$container" docker ps --format '{{.Names}}' | grep "^titan-edge$")
+
+        if [ -n "$is_titan_edge_running" ]; then
+            echo "Останавливаем контейнер 'titan-edge' внутри $container"
+            docker exec "$container" docker stop titan-edge
+        fi
+
+        echo "Запускаем контейнер 'titan-edge' внутри $container"
+        docker exec "$container" docker start titan-edge
+
+        echo "Контейнер 'titan-edge' внутри $container перезапущен."
+        echo "--------------------------------------------"
+    done
+
+    echo "Все ноды перезагружены."
+    read -p "Нажмите Enter, чтобы вернуться в меню..."
+}
+
+# Функция просмотра логов
+view_logs_function() {
+    echo "Просмотр логов Docker..."
+
+    # Получаем список контейнеров с именем titan*
+    containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+
+    for container in $containers; do
+        echo "--------------------------------------------"
+        echo "Логи 'titan-edge' внутри контейнера $container"
+
+        # Проверяем, запущен ли контейнер
+        is_running=$(docker ps --format '{{.Names}}' | grep "^$container$")
+
+        if [ -z "$is_running" ]; then
+            echo "Контейнер $container не запущен. Запускаем..."
+            docker start "$container"
+        fi
+
+        # Проверяем, существует ли контейнер titan-edge внутри контейнера
+        is_titan_edge_running=$(docker exec "$container" docker ps -a --format '{{.Names}}' | grep "^titan-edge$")
+
+        if [ -z "$is_titan_edge_running" ]; then
+            echo "Контейнер 'titan-edge' не найден внутри $container."
             continue
         fi
 
-        # Выполняем команду bind внутри контейнера без опции -it
-        echo "Выполняем команду bind внутри $container"
-        docker exec "$container" docker run --rm -v /root/.titanedge:/root/.titanedge nezha123/titan-edge bind --hash="$IDENTITY_CODE" https://api-test1.container1.titannet.io/api/v2/device/binding
+        # Отображаем последние 100 строк логов
+        docker exec "$container" docker logs --tail 100 titan-edge
+        echo "--------------------------------------------"
+    done
 
-        echo "Настройка контейнера $container завершена."
-    else
-        echo "Внутри контейнера $container уже запущены Docker-контейнеры."
-    fi
+    echo "Логи отображены."
+    read -p "Нажмите Enter, чтобы вернуться в меню..."
+}
 
-    echo "--------------------------------------------"
+# Главное меню
+while true; do
+    clear
+    echo "==========================================="
+    echo "Бегунки узлов vs TITAN"
+    echo "==========================================="
+    echo "1) Установка"
+    echo "2) Перезагрузить ноды"
+    echo "3) Посмотреть логи"
+    echo "4) Выход"
+    echo "==========================================="
+    read -p "Пожалуйста, выберите пункт [1-4]: " choice
+
+    case $choice in
+        1)
+            installation_function
+            ;;
+        2)
+            restart_nodes_function
+            ;;
+        3)
+            view_logs_function
+            ;;
+        4)
+            echo "Выход."
+            exit 0
+            ;;
+        *)
+            echo "Недопустимый вариант!"
+            read -p "Нажмите Enter, чтобы продолжить..."
+            ;;
+    esac
 done
-
-echo "Все контейнеры настроены."
