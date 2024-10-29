@@ -221,9 +221,37 @@ restart_nodes_function() {
     echo "Перезагрузка нод..."
 
     # Получаем список контейнеров с именем titan*
-    containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+    all_containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
 
-    for container in $containers; do
+    # Предлагаем выбрать контейнеры для перезагрузки
+    echo "Вы хотите перезагрузить все ноды или выбрать конкретные?"
+    echo "1) Все ноды"
+    echo "2) Выбрать ноды"
+    read -p "Выберите вариант [1-2]: " restart_choice
+
+    if [ "$restart_choice" == "1" ]; then
+        selected_containers=($all_containers)
+    elif [ "$restart_choice" == "2" ]; then
+        echo "Доступные контейнеры:"
+        index=1
+        declare -A container_map
+        for container in $all_containers; do
+            echo "$index) $container"
+            container_map[$index]=$container
+            index=$((index + 1))
+        done
+        read -p "Введите номера контейнеров через пробел: " -a selected_indices
+        selected_containers=()
+        for idx in "${selected_indices[@]}"; do
+            selected_containers+=("${container_map[$idx]}")
+        done
+    else
+        echo "Недопустимый вариант."
+        read -p "Нажмите Enter, чтобы вернуться в меню..."
+        return
+    fi
+
+    for container in "${selected_containers[@]}"; do
         echo "Обработка контейнера $container"
 
         # Проверяем, запущен ли контейнер
@@ -242,6 +270,8 @@ restart_nodes_function() {
         if [ -n "$is_titan_edge_running" ]; then
             echo "Останавливаем контейнер 'titan-edge' внутри $container"
             docker exec "$container" docker stop titan-edge
+        else
+            echo "Контейнер 'titan-edge' не запущен внутри $container."
         fi
 
         echo "Запускаем контейнер 'titan-edge' внутри $container"
@@ -251,7 +281,7 @@ restart_nodes_function() {
         echo "--------------------------------------------"
     done
 
-    echo "Все ноды перезагружены."
+    echo "Выбранные ноды перезагружены."
     read -p "Нажмите Enter, чтобы вернуться в меню..."
 }
 
@@ -259,10 +289,46 @@ restart_nodes_function() {
 view_logs_function() {
     echo "Просмотр логов Docker..."
 
-    # Получаем список контейнеров с именем titan*
-    containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+    # Запрашиваем количество строк логов
+    read -p "Сколько последних строк логов вы хотите увидеть? " log_lines
+    if [[ ! "$log_lines" =~ ^[0-9]+$ ]]; then
+        echo "Ошибка: введите корректное число."
+        read -p "Нажмите Enter, чтобы вернуться в меню..."
+        return
+    fi
 
-    for container in $containers; do
+    # Получаем список контейнеров с именем titan*
+    all_containers=$(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}[0-9]*$")
+
+    # Предлагаем выбрать контейнеры для просмотра логов
+    echo "Вы хотите посмотреть логи всех нод или выбрать конкретные?"
+    echo "1) Все ноды"
+    echo "2) Выбрать ноды"
+    read -p "Выберите вариант [1-2]: " log_choice
+
+    if [ "$log_choice" == "1" ]; then
+        selected_containers=($all_containers)
+    elif [ "$log_choice" == "2" ]; then
+        echo "Доступные контейнеры:"
+        index=1
+        declare -A container_map
+        for container in $all_containers; do
+            echo "$index) $container"
+            container_map[$index]=$container
+            index=$((index + 1))
+        done
+        read -p "Введите номера контейнеров через пробел: " -a selected_indices
+        selected_containers=()
+        for idx in "${selected_indices[@]}"; do
+            selected_containers+=("${container_map[$idx]}")
+        done
+    else
+        echo "Недопустимый вариант."
+        read -p "Нажмите Enter, чтобы вернуться в меню..."
+        return
+    fi
+
+    for container in "${selected_containers[@]}"; do
         echo "--------------------------------------------"
         echo "Логи 'titan-edge' внутри контейнера $container"
 
@@ -282,8 +348,8 @@ view_logs_function() {
             continue
         fi
 
-        # Отображаем последние 100 строк логов
-        docker exec "$container" docker logs --tail 100 titan-edge
+        # Отображаем последние N строк логов
+        docker exec "$container" docker logs --tail "$log_lines" titan-edge
         echo "--------------------------------------------"
     done
 
