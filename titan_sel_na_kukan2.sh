@@ -60,9 +60,7 @@ show_header() {
 }
 
 # Вызываем функцию отображения заголовка
-show_header
 
-#!/bin/bash
 
 # Прекращаем выполнение при ошибках
 set -e
@@ -83,27 +81,27 @@ installation_function() {
     echo "Создаём Dockerfile..."
 
     cat <<EOF > Dockerfile
-    # Используем базовый образ Ubuntu
-    FROM ubuntu:22.04
+# Используем базовый образ Ubuntu
+FROM ubuntu:22.04
 
-    # Установка необходимых пакетов
-    RUN apt-get update && apt-get install -y \\
-        apt-transport-https \\
-        ca-certificates \\
-        curl \\
-        software-properties-common \\
-        uuid-runtime \\
-        && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \\
-        && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" \\
-        && apt-get update \\
-        && apt-get install -y docker-ce docker-ce-cli containerd.io \\
-        && curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose \\
-        && chmod +x /usr/local/bin/docker-compose \\
-        && usermod -aG docker root
+# Установка необходимых пакетов
+RUN apt-get update && apt-get install -y \\
+    apt-transport-https \\
+    ca-certificates \\
+    curl \\
+    software-properties-common \\
+    uuid-runtime \\
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \\
+    && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" \\
+    && apt-get update \\
+    && apt-get install -y docker-ce docker-ce-cli containerd.io \\
+    && curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose \\
+    && chmod +x /usr/local/bin/docker-compose \\
+    && usermod -aG docker root
 
-    # Запуск демона Docker
-    CMD ["sh", "-c", "dockerd & tail -f /dev/null"]
-    EOF
+# Запуск демона Docker
+CMD ["sh", "-c", "dockerd & tail -f /dev/null"]
+EOF
 
     echo "Dockerfile создан."
 
@@ -297,8 +295,9 @@ view_logs_function() {
 # Главное меню
 while true; do
     clear
+    show_header
     echo "==========================================="
-    echo "Бегунки узлов vs TITAN"
+    echo "                 Главное меню"
     echo "==========================================="
     echo "1) Установка"
     echo "2) Перезагрузить ноды"
