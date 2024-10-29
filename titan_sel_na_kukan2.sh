@@ -115,7 +115,7 @@ EOF
             docker exec "$container" mkdir -p /root/.titanedge
 
             echo "Запускаем nezha123/titan-edge внутри $container"
-            docker exec "$container" docker run --name titan-edge --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
+            docker exec "$container" docker run --network=host -d -v /root/.titanedge:/root/.titanedge nezha123/titan-edge
 
             # Пауза 3 секунды для создания файла config.toml
             echo "Ожидание 3 секунд для создания config.toml"
@@ -209,20 +209,19 @@ restart_nodes_function() {
             echo "Контейнер $container уже запущен."
         fi
 
-        # Проверяем, запущен ли контейнер titan-edge внутри контейнера
-        is_titan_edge_running=$(docker exec "$container" docker ps --format '{{.Names}}' | grep "^titan-edge$")
+        # Получаем ID запущенного Docker-контейнера внутри контейнера
+        running_container_id=$(docker exec "$container" docker ps -q)
 
-        if [ -n "$is_titan_edge_running" ]; then
-            echo "Останавливаем контейнер 'titan-edge' внутри $container"
-            docker exec "$container" docker stop titan-edge
+        if [ -n "$running_container_id" ]; then
+            echo "Останавливаем контейнер внутри $container"
+            docker exec "$container" docker stop "$running_container_id"
+            echo "Запускаем контейнер внутри $container"
+            docker exec "$container" docker start "$running_container_id"
+            echo "Контейнер внутри $container перезапущен."
         else
-            echo "Контейнер 'titan-edge' не запущен внутри $container."
+            echo "Нет запущенных Docker-контейнеров внутри $container."
         fi
 
-        echo "Запускаем контейнер 'titan-edge' внутри $container"
-        docker exec "$container" docker start titan-edge
-
-        echo "Контейнер 'titan-edge' внутри $container перезапущен."
         echo "--------------------------------------------"
     done
 
@@ -281,7 +280,7 @@ view_logs_function() {
 
     for container in "${selected_containers[@]}"; do
         echo "--------------------------------------------"
-        echo "Логи 'titan-edge' внутри контейнера $container"
+        echo "Логи Docker-контейнера внутри $container"
 
         # Проверяем, запущен ли контейнер
         is_running=$(docker ps --format '{{.Names}}' | grep "^$container$")
@@ -291,16 +290,16 @@ view_logs_function() {
             docker start "$container"
         fi
 
-        # Проверяем, существует ли контейнер titan-edge внутри контейнера
-        is_titan_edge_running=$(docker exec "$container" docker ps -a --format '{{.Names}}' | grep "^titan-edge$")
+        # Получаем ID запущенного Docker-контейнера внутри контейнера
+        running_container_id=$(docker exec "$container" docker ps -q)
 
-        if [ -z "$is_titan_edge_running" ]; then
-            echo "Контейнер 'titan-edge' не найден внутри $container."
-            continue
+        if [ -n "$running_container_id" ]; then
+            # Отображаем последние N строк логов
+            docker exec "$container" docker logs --tail "$log_lines" "$running_container_id" || echo "Ошибка при получении логов из контейнера внутри $container."
+        else
+            echo "Нет запущенных Docker-контейнеров внутри $container."
         fi
 
-        # Отображаем последние N строк логов
-        docker exec "$container" docker logs --tail "$log_lines" titan-edge || echo "Ошибка при получении логов из контейнера 'titan-edge' внутри $container."
         echo "--------------------------------------------"
     done
 
